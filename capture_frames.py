@@ -1,6 +1,5 @@
 import os
 import cv2
-import matplotlib.pyplot as plt
 from time import time, sleep
 
 def capture_frames(framerate, duration, handler):
