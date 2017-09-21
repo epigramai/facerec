@@ -1,7 +1,7 @@
 import os
 import tensorflow as tf
 
-DEFAULT_DETECTION_CHECKPOINT_PATH = 'data/models/detection/model.ckpt'
+DEFAULT_DETECTION_PB_PATH = 'data/pbs/face_detection_graph.pb'
 
 def _find_latest_checkpoint_id(path):
     folder = '/'.join(path.split('/')[:-1])
@@ -15,15 +15,26 @@ def _find_latest_checkpoint_id(path):
     return sorted(ids)[-1]
 
 class FaceDetector():
-    def __init__(self, checkpoint_path=DEFAULT_DETECTION_CHECKPOINT_PATH):
-        latest_checkpoint_id = _find_latest_checkpoint_id(checkpoint_path)
-        checkpoint_path = '-'.join([checkpoint_path, latest_checkpoint_id])
-        metagraph_path = '.'.join([checkpoint_path, 'meta'])
-        
+    def __init__(self, path=DEFAULT_DETECTION_PB_PATH):
         with tf.Session() as sess:
-            saver = tf.train.import_meta_graph(metagraph_path)
-            saver.restore(sess, checkpoint_path)
-            self.graph = sess.graph
+            with tf.gfile.FastGFile(path,'rb') as f:
+                graph_def = tf.GraphDef()
+                graph_def.ParseFromString(f.read())
+                _ = tf.import_graph_def(graph_def,name='')
+                
+                self.graph = sess.graph
+                self.image_tensor = sess.graph.get_tensor_by_name('image_tensor:0')
+                self.boxes_tensor = sess.graph.get_tensor_by_name('detection_boxes:0')
+                self.scores_tensor = sess.graph.get_tensor_by_name('detection_scores:0')
+                self.classes_tensor = sess.graph.get_tensor_by_name('detection_classes:0')
+
 
     def detect(self, img):
-        return img
+        with tf.Session(graph=self.graph) as sess:
+            tensors = [self.boxes_tensor, self.scores_tensor, self.classes_tensor]
+            boxes, scores, classes = sess.run(tensors, feed_dict={self.image_tensor: [img]})
+            print('Boxes: ' + str(boxes))
+            print('Scores: ' + str(scores))
+            print('Classes: ' + str(classes))
+
+        return boxes[0][:10]
